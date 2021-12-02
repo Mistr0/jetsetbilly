@@ -35,6 +35,8 @@ LIGHTGREY = (224,224,224)
 MIDGREY = (128,128,128)
 DARKGREY = (32,32,32)
 
+MAINFONTSIZE = 14
+
 #box at the bottom of the screen
 class InventoryBox(pygame.sprite.Sprite):
     def __init__(self):
@@ -53,6 +55,26 @@ class Point(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         self.rect = pygame.Rect(x, y, 0, 0)
+
+class TextSurf(pygame.sprite.Sprite):
+    def __init__(self, xsize, ysize, xloc, yloc, text):
+        super().__init__()
+        self.image = pygame.Surface([xsize, ysize])
+        self.image.fill(BLACK)
+        self.bgcol = BLACK
+        self.rect = self.image.get_rect()
+        self.rect.x = xloc
+        self.rect.y = yloc
+        
+        self.myfont = pygame.font.SysFont("Comic Sans MS", MAINFONTSIZE)
+        self.tsurf = self.myfont.render(text, True, WHITE)
+        self.trect = self.tsurf.get_rect()
+        self.tcolour = WHITE
+        self.tsize = MAINFONTSIZE
+
+        #self.image.blit(self.tsurf, (self.rect.centerx, self.rect.centery))
+        self.image.blit(self.tsurf, (self.rect.width//2-self.trect.w//2, self.rect.height//2-self.trect.h//2))     
+        interface.add(self)
 
 class Bullet():
     def __init__(self, shooter, x, y):
@@ -112,7 +134,6 @@ class Bullet():
                     #remember i cant shoot air, or water
                     if obj.is_shot():
                         return
-
         
 #anything ingame is an Actor
 class Actor(pygame.sprite.Sprite):
@@ -232,8 +253,7 @@ class Pawn(Actor):
         if bump_kicker:
             self.dy = -50
             #note that this doesn't interfere witih AIRSPEED
-            #which limits fall velocity, but i'm going UP!
-        
+            #which limits fall velocity, but i'm going UP! 
 
 class Enemy(Pawn):
     def __init__(self, x, y):
@@ -375,7 +395,6 @@ class Player(Pawn):
             if self.dx < 0: self.dx += 1
             elif self.dx > 0: self.dx -= 1        
         
-
 #base class for all tiles
 class Tile(Actor):
     def __init__(self, x, y):
@@ -386,13 +405,11 @@ class Tile(Actor):
         self.rect.centery = y
 
         tiles.add(self)
-
 class LandTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.image.fill(BROWN)
         landtiles.add(self)
-
 class AirTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -400,7 +417,6 @@ class AirTile(Tile):
 
     def is_shot(self):
         pass
-
 class WaterTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -409,19 +425,16 @@ class WaterTile(Tile):
 
     def is_shot(self):
         pass
-
 class WallTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.image.fill(DARKBROWN)
         walltiles.add(self)
-
 class LavaTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.image.fill(RED)
         lavatiles.add(self)
-
 class KickerTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -441,15 +454,11 @@ class Pickup(Actor):
 
     def collect(self):
         self.kill()
-
 class GoldPickup(Pickup):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.image.fill(YELLOW)
         goldpickups.add(self)
-
-
-
 
 pygame.init()
 screen = pygame.display.set_mode([SCREENWIDTH,SCREENHEIGHT])
@@ -481,7 +490,7 @@ pickups = pygame.sprite.Group()
 goldpickups = pygame.sprite.Group()
 
 worldmap = []
-
+#read data file and generate map
 for i in range(len(mapdata)):
     #keep all map in list of lists
     worldmap.append([])
@@ -514,9 +523,11 @@ for i in range(len(mapdata)):
 
 player = Player()
 ibox = InventoryBox()
+TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
 
 clock = pygame.time.Clock()
 
+#main game loop
 done = False
 while not done:
     clock.tick(60)
@@ -559,30 +570,25 @@ while not done:
         player.rect.centerx = FORWARDX
         for thing in world:
             thing.scroll(0-scroll, 0)
-        
-
     elif player.rect.centerx < BACKWARDX:
         scroll = BACKWARDX - player.rect.centerx
         player.rect.centerx = BACKWARDX
         for thing in world:
             thing.scroll(scroll, 0)
         
-
     #and scroll in y
     if player.rect.centery > FORWARDY:
         scroll = player.rect.centery - FORWARDY
         player.rect.centery = FORWARDY
         for thing in world:
             thing.scroll(0, 0-scroll)
-        
-
     elif player.rect.centery < BACKWARDY:
         scroll = BACKWARDY - player.rect.centery
         player.rect.centery = BACKWARDY
         for thing in world:
             thing.scroll(0, scroll)
     
-
+    #draw
     screen.fill(MIDGREY)
     world.draw(screen)
     interface.draw(screen)
