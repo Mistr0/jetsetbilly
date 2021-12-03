@@ -1,4 +1,14 @@
 import pygame, csv
+from pygame.locals import K_w, K_a, K_s, K_d, K_r, K_n
+
+#todo
+#make overworld
+#make new levels
+LEVELS = {
+    '1': 'map',
+    '2': 'lavafactory',
+    '3': 'metalcomplex'
+}
 
 #lots of global variables, haha
 SCREENWIDTH = 800
@@ -134,7 +144,7 @@ class Bullet():
                     #remember i cant shoot air, or water
                     if obj.is_shot():
                         return
-        
+
 #anything ingame is an Actor
 class Actor(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -254,7 +264,6 @@ class Pawn(Actor):
             self.dy = -50
             #note that this doesn't interfere witih AIRSPEED
             #which limits fall velocity, but i'm going UP! 
-
 class Enemy(Pawn):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -310,7 +319,6 @@ class Enemy(Pawn):
         if bump_lava:
             #i just die
             self.kill()
-
 class Player(Pawn):
     def __init__(self):
         super().__init__(PLAYERSTARTX, PLAYERSTARTY)
@@ -395,7 +403,7 @@ class Player(Pawn):
             if self.dx < 0: self.dx += 1
             elif self.dx > 0: self.dx -= 1        
         
-#base class for all tiles
+#base class for all tiles, plus tile types
 class Tile(Actor):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -441,6 +449,7 @@ class KickerTile(Tile):
         self.image.fill(MAGENTA)
         kickertiles.add(self)
 
+#pickups
 class Pickup(Actor):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -460,19 +469,92 @@ class GoldPickup(Pickup):
         self.image.fill(YELLOW)
         goldpickups.add(self)
 
+#overworld classes here
+class OverworldPlayer(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface([32,32])
+        self.image.fill(WHITE)
+        self.rect = self.image.get_rect()
+        self.rect.x = 100
+        self.rect.y = 100
+
+        self.dx = 0
+        self.dy = 0
+
+        overworldsprites.add(self)
+
+    def update(self):
+        self.rect.x += self.dx
+        self.rect.y += self.dy
+
+    def move(self, direction):
+        if direction == "up":
+            self.dy -= 1
+            if self.dy < -5:
+                self.dy = -5
+        if direction == "down":
+            self.dy += 1
+            if self.dy > 5:
+                self.dy = 5
+        if direction == "right":
+            self.dx += 1
+            if self.dx > 5:
+                self.dx = 5
+        if direction == "left":
+            self.dx -= 1
+            if self.dx < -5:
+                self.dx = -5
+        if direction == "no_updown":
+            if self.dy > 0: self.dy -= 1
+            if self.dy < 0: self.dy += 1
+        if direction == "no_leftright":
+            if self.dx > 0: self.dx -= 1
+            if self.dx < 0: self.dx += 1
+class OverworldTile(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface([TILESIZE, TILESIZE])
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.centery = y
+
+        overworldsprites.add(self)
+class OverworldLandTile(OverworldTile):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image.fill(GREEN)
+class OverworldWallTile(OverworldTile):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image.fill(DARKBROWN)
+class OverworldWaterTile(OverworldTile):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image.fill(BLUE)
+class OverworldLavalTile(OverworldTile):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.image.fill(RED)
+class LevelBox(OverworldTile):
+    def __init__(self, x, y, level):
+        super().__init__(x, y)
+        self.level = level
+        levelboxes.add(self)
+
+
+
 pygame.init()
 screen = pygame.display.set_mode([SCREENWIDTH,SCREENHEIGHT])
 
-#just used csv so i can make map in excel
-with open("map.csv") as f:
-    reader = csv.reader(f)
-    mapdata = []
-    for row in reader:
-        mapdata.append(row)
-
-#lotsa groups
 interface = pygame.sprite.Group()
-        
+inventory = pygame.sprite.Group()
+
+ibox = InventoryBox()
+TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
+clock = pygame.time.Clock()
+
+#lotsa groups      
 world = pygame.sprite.Group()
 players = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
@@ -484,122 +566,237 @@ walltiles = pygame.sprite.Group()
 lavatiles = pygame.sprite.Group()
 kickertiles = pygame.sprite.Group()
 
-inventory = pygame.sprite.Group()
-
 pickups = pygame.sprite.Group()
 goldpickups = pygame.sprite.Group()
 
-worldmap = []
-#read data file and generate map
+overworldsprites = pygame.sprite.Group()
+levelboxes = pygame.sprite.Group()
+
+
+
+with open("overworld.csv") as f:
+    reader = csv.reader(f)
+    mapdata = []
+    for row in reader:
+        mapdata.append(row)
+
+#overworld can probably stay in memory long as its not rendered should be ok
+overworld_worldmap = []
+
 for i in range(len(mapdata)):
     #keep all map in list of lists
-    worldmap.append([])
+    overworld_worldmap.append([])
     for j in range(len(mapdata[i])):
 
         #terrain types
-        if mapdata[i][j][0] == ".":
-            newtile = AirTile(j*TILESIZE, i*TILESIZE)
-        elif mapdata[i][j][0] == "#":
-            newtile = LandTile(j*TILESIZE, i*TILESIZE)
-        elif mapdata[i][j][0] == ";":
-            newtile = WaterTile(j*TILESIZE, i*TILESIZE)
-        elif mapdata[i][j][0] == "]":
-            newtile = WallTile(j*TILESIZE, i*TILESIZE)
-        elif mapdata[i][j][0] == "x":
-            newtile = LavaTile(j*TILESIZE, i*TILESIZE)
-        elif mapdata[i][j][0] == "k":
-            newtile = KickerTile(j*TILESIZE, i*TILESIZE)
+        #is it bad that i used different symbols?
+        #"no"
+        if mapdata[i][j] == ".":
+            newtile = OverworldLandTile(j*TILESIZE, i*TILESIZE)
+        elif mapdata[i][j] == ";":
+            newtile = OverworldWaterTile(j*TILESIZE, i*TILESIZE)
+        elif mapdata[i][j] == "x":
+            newtile = OverworldLavaTile(j*TILESIZE, i*TILESIZE)
+        elif mapdata[i][j] == "#":
+            newtile = OverworldWallTile(j*TILESIZE, i*TILESIZE)
+
+        elif mapdata[i][j].isnumeric():
+            newtile = LevelBox(j*TILESIZE, i*TILESIZE, mapdata[i][j])
+
         
-        worldmap[-1].append(newtile)#add new tile to current row of map
-
-        #pickups
-        if mapdata[i][j][1] == "g":
-            newpickup = GoldPickup(j*TILESIZE, i*TILESIZE)
-
-        #enemies!
-        if mapdata[i][j][2] == "e":
-            newenemy = Enemy(j*TILESIZE, i*TILESIZE)
+        overworld_worldmap[-1].append(newtile)#add new tile to current row of map
+        overworldsprites.add(newtile)
 
 
-player = Player()
-ibox = InventoryBox()
-TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
-
-clock = pygame.time.Clock()
-
-#main game loop
+#this is the main game loop
+#its in multiple parts (is this sensible?)
+#theres an overworld part, and a level part
+#i want the overworld to control which level is loaded
+overworld_player = OverworldPlayer()
 done = False
 while not done:
-    clock.tick(60)
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            done = True
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            #need to SHOOT here!
-            x, y = pygame.mouse.get_pos()
-            Bullet(player, x, y)
-
-    keys = pygame.key.get_pressed()
-
-    #restart game, just restart player and all tiles
-    if keys[pygame.K_r]:
-        for thing in world:
-            thing.restart()
-
-    if keys[pygame.K_w]:
-        player.jump()
-
-    #looks a bit hacky but i think its fairly ok
-    #as noted above, need to check if player is actively running
-    #if not, they slow down
-    if keys[pygame.K_a] or keys[pygame.K_d]:
-        if keys[pygame.K_a]:
-            player.run("l")
-        if keys[pygame.K_d]:
-            player.run("r")
-    else:
-        player.run("")
-
-    world.update()
-
-    #scroll the map in x
-    if player.rect.centerx > FORWARDX:
-        scroll = player.rect.centerx - FORWARDX
-        player.rect.centerx = FORWARDX
-        for thing in world:
-            thing.scroll(0-scroll, 0)
-    elif player.rect.centerx < BACKWARDX:
-        scroll = BACKWARDX - player.rect.centerx
-        player.rect.centerx = BACKWARDX
-        for thing in world:
-            thing.scroll(scroll, 0)
-        
-    #and scroll in y
-    if player.rect.centery > FORWARDY:
-        scroll = player.rect.centery - FORWARDY
-        player.rect.centery = FORWARDY
-        for thing in world:
-            thing.scroll(0, 0-scroll)
-    elif player.rect.centery < BACKWARDY:
-        scroll = BACKWARDY - player.rect.centery
-        player.rect.centery = BACKWARDY
-        for thing in world:
-            thing.scroll(0, scroll)
+    in_overworld = True
+    in_level = False
     
-    #draw
-    screen.fill(MIDGREY)
-    world.draw(screen)
-    interface.draw(screen)
-    inventory.draw(screen)
+    while in_overworld:
+        clock.tick(60)
+        #move around to different loactions
 
-    #enemies and players ARE in world
-    #but i deffo want them drawn last so
-    enemies.draw(screen)
-    players.draw(screen)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                in_overworld = False
+                done = True
 
-    pygame.display.flip()
+        keys = pygame.key.get_pressed()
+
+        if keys[K_w]:
+            overworld_player.move("up")
+        if keys[K_s]:
+            overworld_player.move("down")
+        if keys[K_a]:
+            overworld_player.move("left")
+        if keys[K_d]:
+            overworld_player.move("right")
+        if keys[K_w] + keys[K_s] == 0:
+            overworld_player.move("no_updown")
+        if keys[K_a] + keys[K_d] == 0:
+            overworld_player.move("no_leftright")
+
+        overworld_player.update()
+
+        bump_level = pygame.sprite.spritecollide(overworld_player, levelboxes, False)
+        if bump_level:
+            in_overworld = False
+            in_level = True
+            level_to_load = LEVELS[bump_level[0].level]
+
+        screen.fill(BLACK)
+        overworldsprites.draw(screen)
+
+        pygame.display.flip()
+
+
+
+
+    #just used csv so i can make map in excel
+    with open(level_to_load + ".csv") as f:
+        reader = csv.reader(f)
+        mapdata = []
+        for row in reader:
+            mapdata.append(row)
+
+    worldmap = []
+    #read data file and generate map
+    for i in range(len(mapdata)):
+        #keep all map in list of lists
+        worldmap.append([])
+        for j in range(len(mapdata[i])):
+
+            #terrain types
+            if mapdata[i][j][0] == ".":
+                newtile = AirTile(j*TILESIZE, i*TILESIZE)
+            elif mapdata[i][j][0] == "#":
+                newtile = LandTile(j*TILESIZE, i*TILESIZE)
+            elif mapdata[i][j][0] == ";":
+                newtile = WaterTile(j*TILESIZE, i*TILESIZE)
+            elif mapdata[i][j][0] == "]":
+                newtile = WallTile(j*TILESIZE, i*TILESIZE)
+            elif mapdata[i][j][0] == "x":
+                newtile = LavaTile(j*TILESIZE, i*TILESIZE)
+            elif mapdata[i][j][0] == "k":
+                newtile = KickerTile(j*TILESIZE, i*TILESIZE)
+            
+            worldmap[-1].append(newtile)#add new tile to current row of map
+
+            #pickups
+            if mapdata[i][j][1] == "g":
+                newpickup = GoldPickup(j*TILESIZE, i*TILESIZE)
+
+            #enemies!
+            if mapdata[i][j][2] == "e":
+                newenemy = Enemy(j*TILESIZE, i*TILESIZE)
+
+
+    player = Player()    
+
+    #main game loop
+    while in_level:
+        clock.tick(60)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                in_level = False
+                done = True
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                #need to SHOOT here!
+                x, y = pygame.mouse.get_pos()
+                Bullet(player, x, y)
+
+        keys = pygame.key.get_pressed()
+
+        #restart game, just restart player and all tiles
+        if keys[K_r]:
+            for thing in world:
+                thing.restart()
+
+        if keys[K_w]:
+            player.jump()
+
+        if keys[K_n]:
+            in_level = False
+            in_overworld = True
+            #need to do this bit differently!!!
+            overworld_player.rect.x -= 20
+            overworld_player.rect.y -= 20
+
+        #looks a bit hacky but i think its fairly ok
+        #as noted above, need to check if player is actively running
+        #if not, they slow down
+        if keys[K_a] or keys[K_d]:
+            if keys[K_a]:
+                player.run("l")
+            if keys[K_d]:
+                player.run("r")
+        else:
+            player.run("")
+
+        world.update()
+
+        #scroll the map in x
+        if player.rect.centerx > FORWARDX:
+            scroll = player.rect.centerx - FORWARDX
+            player.rect.centerx = FORWARDX
+            for thing in world:
+                thing.scroll(0-scroll, 0)
+        elif player.rect.centerx < BACKWARDX:
+            scroll = BACKWARDX - player.rect.centerx
+            player.rect.centerx = BACKWARDX
+            for thing in world:
+                thing.scroll(scroll, 0)
+            
+        #and scroll in y
+        if player.rect.centery > FORWARDY:
+            scroll = player.rect.centery - FORWARDY
+            player.rect.centery = FORWARDY
+            for thing in world:
+                thing.scroll(0, 0-scroll)
+        elif player.rect.centery < BACKWARDY:
+            scroll = BACKWARDY - player.rect.centery
+            player.rect.centery = BACKWARDY
+            for thing in world:
+                thing.scroll(0, scroll)
+        
+        #draw
+        screen.fill(MIDGREY)
+        world.draw(screen)
+        interface.draw(screen)
+        inventory.draw(screen)
+
+        #enemies and players ARE in world
+        #but i deffo want them drawn last so
+        enemies.draw(screen)
+        players.draw(screen)
+
+        pygame.display.flip()
+
+    #here, we have exited the level
+    #need to kill sprites, and del them
+    for line in worldmap:
+        for each_tile in line:
+            each_tile.kill()
+            del each_tile
+
+    for item in pickups:
+        item.kill()
+        del item
+    
+    for enemy in enemies:
+        enemy.kill()
+        del enemy
+
+    player.kill()
+    del player
 
 
 pygame.quit()
