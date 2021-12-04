@@ -16,8 +16,8 @@ SCREENHEIGHT = 600
 TILESIZE = 32
 
 #these 4 are for controlling when the screen scrolls side/up/down
-FORWARDX = SCREENWIDTH-300
-BACKWARDX = 300
+FORWARDX = SCREENWIDTH-200
+BACKWARDX = 200
 FORWARDY = SCREENHEIGHT - 200
 BACKWARDY = 200
 
@@ -511,6 +511,26 @@ class OverworldPlayer(pygame.sprite.Sprite):
         if direction == "no_leftright":
             if self.dx > 0: self.dx -= 1
             if self.dx < 0: self.dx += 1
+
+    def collide_walls(self):
+        bump_walls = pygame.sprite.spritecollide(self, overworldwalls, False)
+        for wall in bump_walls:
+            xdiff = self.rect.centerx - wall.rect.centerx
+            ydiff = self.rect.centery - wall.rect.centery
+
+            if abs(xdiff) >= abs(ydiff):
+                #push in x direction accrding to sign of xdiff
+                if xdiff < 0:
+                    self.rect.right = wall.rect.left
+                else:
+                    self.rect.left = wall.rect.right
+            
+            else:
+                #or push in y direction, again according ot sign
+                if ydiff < 0:
+                    self.rect.bottom = wall.rect.top
+                else:
+                    self.rect.top = wall.rect.bottom
 class OverworldTile(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -520,6 +540,12 @@ class OverworldTile(pygame.sprite.Sprite):
         self.rect.centery = y
 
         overworldsprites.add(self)
+        overworldtiles.add(self)
+
+        #will need to move actor when world scrolls
+    def scroll(self, dx, dy):
+        self.rect.x += dx
+        self.rect.y += dy
 class OverworldLandTile(OverworldTile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -528,6 +554,7 @@ class OverworldWallTile(OverworldTile):
     def __init__(self, x, y):
         super().__init__(x, y)
         self.image.fill(DARKBROWN)
+        overworldwalls.add(self)
 class OverworldWaterTile(OverworldTile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -570,7 +597,9 @@ pickups = pygame.sprite.Group()
 goldpickups = pygame.sprite.Group()
 
 overworldsprites = pygame.sprite.Group()
+overworldtiles = pygame.sprite.Group()
 levelboxes = pygame.sprite.Group()
+overworldwalls = pygame.sprite.Group()
 
 
 
@@ -600,6 +629,9 @@ for i in range(len(mapdata)):
         elif mapdata[i][j] == "#":
             newtile = OverworldWallTile(j*TILESIZE, i*TILESIZE)
 
+        #levels indicated by number on map
+        #level number stored in LevelBox object for now
+        #currently looked up in dict, could change?
         elif mapdata[i][j].isnumeric():
             newtile = LevelBox(j*TILESIZE, i*TILESIZE, mapdata[i][j])
 
@@ -643,6 +675,31 @@ while not done:
             overworld_player.move("no_leftright")
 
         overworld_player.update()
+        overworld_player.collide_walls()
+
+        #scroll the map in x
+        if overworld_player.rect.centerx > FORWARDX:
+            scroll = overworld_player.rect.centerx - FORWARDX
+            overworld_player.rect.centerx = FORWARDX
+            for thing in overworldtiles:
+                thing.scroll(0-scroll, 0)
+        elif overworld_player.rect.centerx < BACKWARDX:
+            scroll = BACKWARDX - overworld_player.rect.centerx
+            overworld_player.rect.centerx = BACKWARDX
+            for thing in overworldtiles:
+                thing.scroll(scroll, 0)
+            
+        #and scroll in y
+        if overworld_player.rect.centery > FORWARDY:
+            scroll = overworld_player.rect.centery - FORWARDY
+            overworld_player.rect.centery = FORWARDY
+            for thing in overworldtiles:
+                thing.scroll(0, 0-scroll)
+        elif overworld_player.rect.centery < BACKWARDY:
+            scroll = BACKWARDY - overworld_player.rect.centery
+            overworld_player.rect.centery = BACKWARDY
+            for thing in overworldtiles:
+                thing.scroll(0, scroll)
 
         bump_level = pygame.sprite.spritecollide(overworld_player, levelboxes, False)
         if bump_level:
