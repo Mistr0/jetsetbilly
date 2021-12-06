@@ -1,51 +1,62 @@
 import pygame, csv
 from pygame.locals import K_w, K_a, K_s, K_d, K_r, K_n
 
-#todo
-#make overworld
-#make new levels
-LEVELS = {
-    '1': 'map',
-    '2': 'lavafactory',
-    '3': 'metalcomplex'
-}
+#"all" global variables are in here
+if 1:
+    pygame.init()
 
-#lots of global variables, haha
-SCREENWIDTH = 800
-SCREENHEIGHT = 600
-TILESIZE = 32
+    SCREENWIDTH = 800
+    SCREENHEIGHT = 600
 
-#these 4 are for controlling when the screen scrolls side/up/down
-FORWARDX = SCREENWIDTH-200
-BACKWARDX = 200
-FORWARDY = SCREENHEIGHT - 200
-BACKWARDY = 200
+    screen = pygame.display.set_mode([SCREENWIDTH,SCREENHEIGHT])
 
-#obvs
-PLAYERSTARTX = 300
-PLAYERSTARTY = 200
+    #todo
+    #make overworld
+    #make new levels
+    LEVELS = {
+        '1': 'map',
+        '2': 'lavafactory',
+        '3': 'metalcomplex'
+    }
 
-JUMPHEIGHT = 12
-RUNSPEED = 8
-WATERSPEED = 5
-AIRSPEED = 15 #max fall speed
+    #lots of global variables, haha
+    TILESIZE = 32
 
-RED = (255,0,0)
-GREEN = (0,255,0)
-BLUE = (0,0,255)
-BLACK = (0,0,0)
-WHITE = (255,255,255)
-YELLOW = (255,255,0)
-CYAN = (0,255,255)
-MAGENTA = (255,0,255)
-PINK = (255,128,255)
-BROWN = (96,96,0)
-DARKBROWN = (32,32,0)
-LIGHTGREY = (224,224,224)
-MIDGREY = (128,128,128)
-DARKGREY = (32,32,32)
+    #these 4 are for controlling when the screen scrolls side/up/down
+    FORWARDX = SCREENWIDTH-200
+    BACKWARDX = 200
+    FORWARDY = SCREENHEIGHT - 200
+    BACKWARDY = 200
 
-MAINFONTSIZE = 14
+    #obvs
+    PLAYERSTARTX = 300
+    PLAYERSTARTY = 200
+
+    JUMPHEIGHT = 12
+    RUNSPEED = 8
+    WATERSPEED = 5
+    AIRSPEED = 15 #max fall speed
+
+    RED = (255,0,0)
+    GREEN = (0,255,0)
+    BLUE = (0,0,255)
+    BLACK = (0,0,0)
+    WHITE = (255,255,255)
+    YELLOW = (255,255,0)
+    CYAN = (0,255,255)
+    MAGENTA = (255,0,255)
+    PINK = (255,128,255)
+    BROWN = (96,96,0)
+    DARKBROWN = (32,32,0)
+    LIGHTGREY = (224,224,224)
+    MIDGREY = (128,128,128)
+    DARKGREY = (32,32,32)
+
+    MAINFONTSIZE = 14
+
+    #images
+    IMG_WALL = pygame.image.load('WALL.png').convert_alpha()
+    IMG_GROUND = pygame.image.load('GROUND.png').convert_alpha()
 
 #box at the bottom of the screen
 class InventoryBox(pygame.sprite.Sprite):
@@ -124,10 +135,12 @@ class Bullet():
             xstep/=2
             ystep/=2
 
+        #just going to get it to about 5 because reasons (valid reasons probably)
         while abs(xstep) < 5 and abs(ystep) < 5:
             xstep*=1.5
             ystep*=1.5
 
+        #more brackets == better code
         num_steps = int((((SCREENWIDTH-FORWARDX)/5)**2 + ((SCREENHEIGHT-FORWARDY)/5)**2)**0.5)
 
         for n in range(num_steps):
@@ -135,10 +148,12 @@ class Bullet():
             new_pointy = bullet_starty + int(n*ystep)
             p = Point(new_pointx, new_pointy)
             shot = pygame.sprite.spritecollide(p, world, False)
-            #should work
+            #should work, get rid of the point straight away
             p.kill()
             del p
+            #did i hit something?
             if shot:
+                #could concievably have hit more than one thing?
                 for obj in shot:
                     #returns true if object is able to be shot
                     #remember i cant shoot air, or water
@@ -416,7 +431,7 @@ class Tile(Actor):
 class LandTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
-        self.image.fill(BROWN)
+        self.image = IMG_GROUND
         landtiles.add(self)
 class AirTile(Tile):
     def __init__(self, x, y):
@@ -436,7 +451,7 @@ class WaterTile(Tile):
 class WallTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
-        self.image.fill(DARKBROWN)
+        self.image = IMG_WALL
         walltiles.add(self)
 class LavaTile(Tile):
     def __init__(self, x, y):
@@ -569,37 +584,65 @@ class LevelBox(OverworldTile):
         self.level = level
         levelboxes.add(self)
 
+def scroll_world(target, scrollgroup, fx, fy, bx, by):
+    #takes a target and a group
+    #scrolls group relative to target
+    #also takes parameters for scroll points
+    #assumes all objects in scrollgroup have a scroll function
+    #this is also TOTALLY FINE
 
+    #scroll the map in x
+    if target.rect.centerx > fx:
+        scroll = target.rect.centerx - fx
+        target.rect.centerx = fx
+        for thing in scrollgroup:
+            thing.scroll(0-scroll, 0)
+    elif target.rect.centerx < bx:
+        scroll = bx - target.rect.centerx
+        target.rect.centerx = bx
+        for thing in scrollgroup:
+            thing.scroll(scroll, 0)
+        
+    #and scroll in y
+    if target.rect.centery > fy:
+        scroll = target.rect.centery - fy
+        target.rect.centery = fy
+        for thing in scrollgroup:
+            thing.scroll(0, 0-scroll)
+    elif target.rect.centery < by:
+        scroll = by - target.rect.centery
+        target.rect.centery = by
+        for thing in scrollgroup:
+            thing.scroll(0, scroll)
 
-pygame.init()
-screen = pygame.display.set_mode([SCREENWIDTH,SCREENHEIGHT])
+#all groups here
+if 1:
+    interface = pygame.sprite.Group()
+    inventory = pygame.sprite.Group()
 
-interface = pygame.sprite.Group()
-inventory = pygame.sprite.Group()
+    ibox = InventoryBox()
+    TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
+    clock = pygame.time.Clock()
 
-ibox = InventoryBox()
-TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
-clock = pygame.time.Clock()
+    #lotsa groups      
+    world = pygame.sprite.Group()
+    players = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
 
-#lotsa groups      
-world = pygame.sprite.Group()
-players = pygame.sprite.Group()
-enemies = pygame.sprite.Group()
+    tiles = pygame.sprite.Group()
+    landtiles = pygame.sprite.Group()
+    watertiles = pygame.sprite.Group()
+    walltiles = pygame.sprite.Group()
+    lavatiles = pygame.sprite.Group()
+    kickertiles = pygame.sprite.Group()
 
-tiles = pygame.sprite.Group()
-landtiles = pygame.sprite.Group()
-watertiles = pygame.sprite.Group()
-walltiles = pygame.sprite.Group()
-lavatiles = pygame.sprite.Group()
-kickertiles = pygame.sprite.Group()
+    pickups = pygame.sprite.Group()
+    goldpickups = pygame.sprite.Group()
 
-pickups = pygame.sprite.Group()
-goldpickups = pygame.sprite.Group()
-
-overworldsprites = pygame.sprite.Group()
-overworldtiles = pygame.sprite.Group()
-levelboxes = pygame.sprite.Group()
-overworldwalls = pygame.sprite.Group()
+    overworldsprites = pygame.sprite.Group()
+    overworldtiles = pygame.sprite.Group()
+    levelboxes = pygame.sprite.Group()
+    overworldwalls = pygame.sprite.Group()
 
 
 
@@ -612,6 +655,7 @@ with open("overworld.csv") as f:
 #overworld can probably stay in memory long as its not rendered should be ok
 overworld_worldmap = []
 
+#load overworld map
 for i in range(len(mapdata)):
     #keep all map in list of lists
     overworld_worldmap.append([])
@@ -677,34 +721,13 @@ while not done:
         overworld_player.update()
         overworld_player.collide_walls()
 
-        #scroll the map in x
-        if overworld_player.rect.centerx > FORWARDX:
-            scroll = overworld_player.rect.centerx - FORWARDX
-            overworld_player.rect.centerx = FORWARDX
-            for thing in overworldtiles:
-                thing.scroll(0-scroll, 0)
-        elif overworld_player.rect.centerx < BACKWARDX:
-            scroll = BACKWARDX - overworld_player.rect.centerx
-            overworld_player.rect.centerx = BACKWARDX
-            for thing in overworldtiles:
-                thing.scroll(scroll, 0)
-            
-        #and scroll in y
-        if overworld_player.rect.centery > FORWARDY:
-            scroll = overworld_player.rect.centery - FORWARDY
-            overworld_player.rect.centery = FORWARDY
-            for thing in overworldtiles:
-                thing.scroll(0, 0-scroll)
-        elif overworld_player.rect.centery < BACKWARDY:
-            scroll = BACKWARDY - overworld_player.rect.centery
-            overworld_player.rect.centery = BACKWARDY
-            for thing in overworldtiles:
-                thing.scroll(0, scroll)
+        scroll_world(overworld_player, overworldtiles, FORWARDX, FORWARDY, BACKWARDX, BACKWARDY)
 
         bump_level = pygame.sprite.spritecollide(overworld_player, levelboxes, False)
         if bump_level:
             in_overworld = False
             in_level = True
+            #this bit, could change? or is it ok?
             level_to_load = LEVELS[bump_level[0].level]
 
         screen.fill(BLACK)
@@ -712,8 +735,8 @@ while not done:
 
         pygame.display.flip()
 
-
-
+    #come to here when in_overworld is false (i.e. we are in a level now)
+    #note that the overworld still exists! we juts dont render it
 
     #just used csv so i can make map in excel
     with open(level_to_load + ".csv") as f:
@@ -753,7 +776,7 @@ while not done:
             if mapdata[i][j][2] == "e":
                 newenemy = Enemy(j*TILESIZE, i*TILESIZE)
 
-
+    #make a new player object to play the level with
     player = Player()    
 
     #main game loop
@@ -800,60 +823,27 @@ while not done:
 
         world.update()
 
-        #scroll the map in x
-        if player.rect.centerx > FORWARDX:
-            scroll = player.rect.centerx - FORWARDX
-            player.rect.centerx = FORWARDX
-            for thing in world:
-                thing.scroll(0-scroll, 0)
-        elif player.rect.centerx < BACKWARDX:
-            scroll = BACKWARDX - player.rect.centerx
-            player.rect.centerx = BACKWARDX
-            for thing in world:
-                thing.scroll(scroll, 0)
-            
-        #and scroll in y
-        if player.rect.centery > FORWARDY:
-            scroll = player.rect.centery - FORWARDY
-            player.rect.centery = FORWARDY
-            for thing in world:
-                thing.scroll(0, 0-scroll)
-        elif player.rect.centery < BACKWARDY:
-            scroll = BACKWARDY - player.rect.centery
-            player.rect.centery = BACKWARDY
-            for thing in world:
-                thing.scroll(0, scroll)
-        
+        scroll_world(player, world, FORWARDX, FORWARDY, BACKWARDX, BACKWARDY)
+
         #draw
         screen.fill(MIDGREY)
-        world.draw(screen)
-        interface.draw(screen)
-        inventory.draw(screen)
 
-        #enemies and players ARE in world
-        #but i deffo want them drawn last so
+        #think this is the right order to do it in
+        world.draw(screen)
         enemies.draw(screen)
         players.draw(screen)
+        interface.draw(screen)
+        inventory.draw(screen)
 
         pygame.display.flip()
 
     #here, we have exited the level
     #need to kill sprites, and del them
-    for line in worldmap:
-        for each_tile in line:
-            each_tile.kill()
-            del each_tile
+    #can i just del the world? i think i can
+    for thing in world:
+        thing.kill()
+        del thing
 
-    for item in pickups:
-        item.kill()
-        del item
-    
-    for enemy in enemies:
-        enemy.kill()
-        del enemy
-
-    player.kill()
-    del player
 
 
 pygame.quit()
