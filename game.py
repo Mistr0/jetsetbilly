@@ -4,22 +4,16 @@ from pygame.locals import K_w, K_a, K_s, K_d, K_r, K_n
 #"all" global variables are in here
 if 1:
     pygame.init()
-
     SCREENWIDTH = 800
     SCREENHEIGHT = 600
-
     screen = pygame.display.set_mode([SCREENWIDTH,SCREENHEIGHT])
 
-    #todo
-    #make overworld
-    #make new levels
     LEVELS = {
         '1': 'map',
         '2': 'lavafactory',
         '3': 'metalcomplex'
     }
 
-    #lots of global variables, haha
     TILESIZE = 32
 
     #these 4 are for controlling when the screen scrolls side/up/down
@@ -28,7 +22,6 @@ if 1:
     FORWARDY = SCREENHEIGHT - 200
     BACKWARDY = 200
 
-    #obvs
     PLAYERSTARTX = 300
     PLAYERSTARTY = 200
 
@@ -63,11 +56,11 @@ class InventoryBox(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
         
-        self.image = pygame.Surface([SCREENWIDTH,32])
+        self.image = pygame.Surface([SCREENWIDTH,TILESIZE])
         self.image.fill(BLACK)
         self.rect = self.image.get_rect()
         self.rect.x = 0
-        self.rect.y = SCREENHEIGHT-32
+        self.rect.y = SCREENHEIGHT-TILESIZE
 
         interface.add(self)
 
@@ -77,6 +70,7 @@ class Point(pygame.sprite.Sprite):
         super().__init__()
         self.rect = pygame.Rect(x, y, 0, 0)
 
+#will hold centred text
 class TextSurf(pygame.sprite.Sprite):
     def __init__(self, xsize, ysize, xloc, yloc, text):
         super().__init__()
@@ -93,10 +87,10 @@ class TextSurf(pygame.sprite.Sprite):
         self.tcolour = WHITE
         self.tsize = MAINFONTSIZE
 
-        #self.image.blit(self.tsurf, (self.rect.centerx, self.rect.centery))
         self.image.blit(self.tsurf, (self.rect.width//2-self.trect.w//2, self.rect.height//2-self.trect.h//2))     
         interface.add(self)
 
+#weirdly Bullets are not actors (might not be weird)
 class Bullet():
     def __init__(self, shooter, x, y):
         #spawn a load of Point objects
@@ -105,9 +99,8 @@ class Bullet():
         #del them after so no memory leaky
 
         #shooter will be a Pawn, probably Player
-
         #note that the bullet needs to start outside my rect
-
+        #most shots will be to the left or right
         if x > shooter.rect.right:
             bullet_startx = shooter.rect.right+1
             bullet_starty = shooter.rect.centery
@@ -128,9 +121,7 @@ class Bullet():
         xstep = x - bullet_startx
         ystep = y - bullet_starty
 
-        #this is correct
         #basically need to work out what a small part of where i clicked will give me
-        #not a hack at all
         while abs(xstep) > 5 or abs(ystep) > 5:
             xstep/=2
             ystep/=2
@@ -147,7 +138,7 @@ class Bullet():
             new_pointx = bullet_startx + int(n*xstep)
             new_pointy = bullet_starty + int(n*ystep)
             p = Point(new_pointx, new_pointy)
-            shot = pygame.sprite.spritecollide(p, world, False)
+            shot = pygame.sprite.spritecollide(p, current_level, False)
             #should work, get rid of the point straight away
             p.kill()
             del p
@@ -160,7 +151,7 @@ class Bullet():
                     if obj.is_shot():
                         return
 
-#anything ingame is an Actor
+#anything ingame is an Actor, ---including in overworld?
 class Actor(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -168,17 +159,16 @@ class Actor(pygame.sprite.Sprite):
         self.startx = x
         self.starty = y
 
-        world.add(self)
-
     def restart(self):
         self.rect.centerx = self.startx
         self.rect.centery = self.starty
 
-    #will need to move actor when world scrolls
+    #will need to move actor when current_level scrolls
     def scroll(self, dx, dy):
         self.rect.x += dx
         self.rect.y += dy
 
+    #to be fixed later (dont want everything to be pink!!)
     def is_shot(self):
         self.image.fill(PINK)
         return True
@@ -202,6 +192,8 @@ class Pawn(Actor):
         self.grounded = False
         self.dx = 0
         self.dy = 0
+
+        current_level.add(self)
 
     def restart(self):
         self.rect.centerx = self.startx
@@ -265,6 +257,9 @@ class Pawn(Actor):
                 self.rect.top = land.rect.bottom
                 self.dy = 0
 
+
+                
+
         #am i wet
         #water is like air but it has to make you slower
         #and makes you jump different, so just flag it
@@ -279,6 +274,9 @@ class Pawn(Actor):
             self.dy = -50
             #note that this doesn't interfere witih AIRSPEED
             #which limits fall velocity, but i'm going UP! 
+
+#not much to say here, enemies are Pawns with special movement, including jumping
+#and a super basic AI (move towards player and jump when leaving a tile edge)
 class Enemy(Pawn):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -334,6 +332,10 @@ class Enemy(Pawn):
         if bump_lava:
             #i just die
             self.kill()
+
+#at the moment, starts on two global variables
+#need to alter so each level tells you where to start
+#cba to do this right now
 class Player(Pawn):
     def __init__(self):
         super().__init__(PLAYERSTARTX, PLAYERSTARTY)
@@ -346,12 +348,12 @@ class Player(Pawn):
 
     def collect(self, obj):
         #once picked up objects will only be in inventory group
-        #not even in world
+        #not even in current_level
         obj.collect()
         inventory.add(obj)
         #set draw location of object on pickup
-        obj.rect.centerx = len(inventory)*32-16
-        obj.rect.centery = SCREENHEIGHT - 16
+        obj.rect.centerx = len(inventory)*TILESIZE-(TILESIZE//2)
+        obj.rect.centery = SCREENHEIGHT - (TILESIZE//2)
 
     def update(self):
         super().update()
@@ -376,7 +378,7 @@ class Player(Pawn):
         bump_lava = pygame.sprite.spritecollide(self, lavatiles, False)
         if bump_lava:
             #restart straight away (at the moment)
-            for thing in world:
+            for thing in current_level:
                 thing.restart()
             return
         
@@ -418,7 +420,7 @@ class Player(Pawn):
             if self.dx < 0: self.dx += 1
             elif self.dx > 0: self.dx -= 1        
         
-#base class for all tiles, plus tile types
+#base class for all tiles, plus tile types. these are all ingame level classes, not overworld
 class Tile(Actor):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -426,8 +428,10 @@ class Tile(Actor):
         self.rect = self.image.get_rect()
         self.rect.centerx = x
         self.rect.centery = y
-
-        tiles.add(self)
+    def is_shot(self):
+        self.image = pygame.Surface([TILESIZE,TILESIZE])
+        self.image.fill(PINK)
+        return True
 class LandTile(Tile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -473,7 +477,7 @@ class Pickup(Actor):
         self.rect.centerx = x
         self.rect.centery = y
 
-        world.add(self)
+        current_level.add(self)
         pickups.add(self)
 
     def collect(self):
@@ -485,6 +489,7 @@ class GoldPickup(Pickup):
         goldpickups.add(self)
 
 #overworld classes here
+#want overworld to have top down view so i guess they have to be separate?
 class OverworldPlayer(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
@@ -533,6 +538,7 @@ class OverworldPlayer(pygame.sprite.Sprite):
             xdiff = self.rect.centerx - wall.rect.centerx
             ydiff = self.rect.centery - wall.rect.centery
 
+            #this just works completely differently to ingame level collision
             if abs(xdiff) >= abs(ydiff):
                 #push in x direction accrding to sign of xdiff
                 if xdiff < 0:
@@ -546,21 +552,15 @@ class OverworldPlayer(pygame.sprite.Sprite):
                     self.rect.bottom = wall.rect.top
                 else:
                     self.rect.top = wall.rect.bottom
-class OverworldTile(pygame.sprite.Sprite):
+
+#tiles in overworld are kinda the same as ingame ones
+#Tile objects are not auto added to groups so i should be able to inherit from them?
+class OverworldTile(Tile):
     def __init__(self, x, y):
-        super().__init__()
-        self.image = pygame.Surface([TILESIZE, TILESIZE])
-        self.rect = self.image.get_rect()
-        self.rect.centerx = x
-        self.rect.centery = y
+        super().__init__(x, y)
 
         overworldsprites.add(self)
         overworldtiles.add(self)
-
-        #will need to move actor when world scrolls
-    def scroll(self, dx, dy):
-        self.rect.x += dx
-        self.rect.y += dy
 class OverworldLandTile(OverworldTile):
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -584,13 +584,8 @@ class LevelBox(OverworldTile):
         self.level = level
         levelboxes.add(self)
 
+#takes target, group, scrolls target relative to group. assumes objects in group have scroll function (they should!)
 def scroll_world(target, scrollgroup, fx, fy, bx, by):
-    #takes a target and a group
-    #scrolls group relative to target
-    #also takes parameters for scroll points
-    #assumes all objects in scrollgroup have a scroll function
-    #this is also TOTALLY FINE
-
     #scroll the map in x
     if target.rect.centerx > fx:
         scroll = target.rect.centerx - fx
@@ -621,15 +616,13 @@ if 1:
     inventory = pygame.sprite.Group()
 
     ibox = InventoryBox()
-    TextSurf(80,32,0,SCREENHEIGHT-64,"inventory")
+    TextSurf(80,TILESIZE,0,SCREENHEIGHT-64,"inventory")
     clock = pygame.time.Clock()
-
-    #lotsa groups      
-    world = pygame.sprite.Group()
+    
+    current_level = pygame.sprite.Group()
     players = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
 
-    tiles = pygame.sprite.Group()
     landtiles = pygame.sprite.Group()
     watertiles = pygame.sprite.Group()
     walltiles = pygame.sprite.Group()
@@ -644,26 +637,19 @@ if 1:
     levelboxes = pygame.sprite.Group()
     overworldwalls = pygame.sprite.Group()
 
-
-
+#open overworld csv and read into reader
 with open("overworld.csv") as f:
     reader = csv.reader(f)
     mapdata = []
     for row in reader:
         mapdata.append(row)
 
-#overworld can probably stay in memory long as its not rendered should be ok
-overworld_worldmap = []
-
-#load overworld map
+#create overworld tiles based on map
 for i in range(len(mapdata)):
-    #keep all map in list of lists
-    overworld_worldmap.append([])
     for j in range(len(mapdata[i])):
 
         #terrain types
         #is it bad that i used different symbols?
-        #"no"
         if mapdata[i][j] == ".":
             newtile = OverworldLandTile(j*TILESIZE, i*TILESIZE)
         elif mapdata[i][j] == ";":
@@ -679,8 +665,6 @@ for i in range(len(mapdata)):
         elif mapdata[i][j].isnumeric():
             newtile = LevelBox(j*TILESIZE, i*TILESIZE, mapdata[i][j])
 
-        
-        overworld_worldmap[-1].append(newtile)#add new tile to current row of map
         overworldsprites.add(newtile)
 
 
@@ -738,18 +722,14 @@ while not done:
     #come to here when in_overworld is false (i.e. we are in a level now)
     #note that the overworld still exists! we juts dont render it
 
-    #just used csv so i can make map in excel
+    #read data file and generate map
     with open(level_to_load + ".csv") as f:
         reader = csv.reader(f)
         mapdata = []
         for row in reader:
             mapdata.append(row)
 
-    worldmap = []
-    #read data file and generate map
     for i in range(len(mapdata)):
-        #keep all map in list of lists
-        worldmap.append([])
         for j in range(len(mapdata[i])):
 
             #terrain types
@@ -765,8 +745,8 @@ while not done:
                 newtile = LavaTile(j*TILESIZE, i*TILESIZE)
             elif mapdata[i][j][0] == "k":
                 newtile = KickerTile(j*TILESIZE, i*TILESIZE)
-            
-            worldmap[-1].append(newtile)#add new tile to current row of map
+
+            current_level.add(newtile)
 
             #pickups
             if mapdata[i][j][1] == "g":
@@ -779,7 +759,7 @@ while not done:
     #make a new player object to play the level with
     player = Player()    
 
-    #main game loop
+    #main game loop for each level
     while in_level:
         clock.tick(60)
 
@@ -789,7 +769,7 @@ while not done:
                 done = True
 
             if event.type == pygame.MOUSEBUTTONDOWN:
-                #need to SHOOT here!
+                #shoot!
                 x, y = pygame.mouse.get_pos()
                 Bullet(player, x, y)
 
@@ -797,12 +777,13 @@ while not done:
 
         #restart game, just restart player and all tiles
         if keys[K_r]:
-            for thing in world:
+            for thing in current_level:
                 thing.restart()
 
         if keys[K_w]:
             player.jump()
 
+        #currently just pressing N for new level
         if keys[K_n]:
             in_level = False
             in_overworld = True
@@ -821,15 +802,15 @@ while not done:
         else:
             player.run("")
 
-        world.update()
+        current_level.update()
 
-        scroll_world(player, world, FORWARDX, FORWARDY, BACKWARDX, BACKWARDY)
+        scroll_world(player, current_level, FORWARDX, FORWARDY, BACKWARDX, BACKWARDY)
 
         #draw
         screen.fill(MIDGREY)
 
         #think this is the right order to do it in
-        world.draw(screen)
+        current_level.draw(screen)
         enemies.draw(screen)
         players.draw(screen)
         interface.draw(screen)
@@ -839,8 +820,8 @@ while not done:
 
     #here, we have exited the level
     #need to kill sprites, and del them
-    #can i just del the world? i think i can
-    for thing in world:
+    #can i just del the current_level? i think i can
+    for thing in current_level:
         thing.kill()
         del thing
 
